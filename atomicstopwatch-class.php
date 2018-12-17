@@ -6,7 +6,7 @@
  * Author:      Scott Lewis <scott@atomiclotus.net>
  * Author URI:  https://atomiclotus.net
  * Version:     0.1
- * Text Domain: wp-stopwatch
+ * Text Domain: atomic-stopwatch
  * License:     GPL v2 or later
  */
 
@@ -48,26 +48,26 @@ class AtomicStopwatch {
     /**
      * @var (float) $start_time
      */
-    private $start_time;
+    public static $start_time;
 
     /**
      * @var (float) $end_time
      */
-    private $end_time;
+    public static $end_time;
 
     /**
      * @var (float) $elapsed_time
      */
-    private $elapsed_time;
+    public static $elapsed_time;
 
     /**
      * AtomicStopwatch constructor. Register the actions.
      */
     function __construct() {
 
-        add_action( 'admin_head', array( 'Stopwatch', 'styles' ) );
-        add_action( 'init',       array( 'Stopwatch', 'start' ) );
-        add_action( 'shutdown',   array( 'Stopwatch', 'stop' ) );
+        add_action( 'admin_head', array( 'AtomicStopwatch', 'styles' ) );
+        add_action( 'init',       array( 'AtomicStopwatch', 'start' ) );
+        add_action( 'shutdown',   array( 'AtomicStopwatch', 'stop' ) );
     }
 
     /**
@@ -76,16 +76,18 @@ class AtomicStopwatch {
      *
      * @return mixed
      */
-    public function ob_handler( $buffer ) {
+    public static function ob_handler( $buffer ) {
 
-        $timediff = time_diff(
-            $this->start_time,
-            microtime(true)
+        self::$elapsed = round(
+            floatval(microtime(true)) - floatval(self::$start_time),
+            2
         );
+
+        $label = __( 'Page Render Time', 'atomic-stopwatch' );
 
         return str_replace(
             '</body>',
-            "<div id=\"stopwatch\">Page Render Time : {$timediff} seconds</div></body>",
+            "<div id=\"stopwatch\">{$label} : " . self::$elapsed . " seconds</div></body>",
             $buffer
         );
 
@@ -95,15 +97,15 @@ class AtomicStopwatch {
      * Start the output buffer.
      */
     public function start() {
-        $this->start_time = microtime(true);
-        ob_start( array( 'Stopwatch', 'ob_handler' ) );
+        self::$start_time = microtime(true);
+        ob_start( array( 'AtomicStopwatch', 'ob_handler' ) );
     }
 
     /**
      * Flush the buffer.
      */
     public function stop() {
-        $this->end_time = microtime(true);
+        self::$end_time = microtime(true);
         ob_end_flush();
     }
 
