@@ -65,9 +65,72 @@ class AtomicStopwatch {
      */
     function __construct() {
 
-        add_action( 'admin_head', array( 'AtomicStopwatch', 'styles' ) );
-        add_action( 'init',       array( 'AtomicStopwatch', 'start' ) );
-        add_action( 'shutdown',   array( 'AtomicStopwatch', 'stop' ) );
+        register_setting( 'general', 'my_ip_address', 'esc_attr' );
+
+        add_action( 'admin_init', array( 'AtomicStopwatch', 'settings_fields' ) );
+
+        // Only initialize the plugin if the user's IP address matches the saved one.
+        if ( get_option( 'my_ip_address' ) === self::get_ip_address() ) {
+            add_action( 'admin_head', array( 'AtomicStopwatch', 'styles' ) );
+            add_action( 'init',       array( 'AtomicStopwatch', 'start' ) );
+            add_action( 'shutdown',   array( 'AtomicStopwatch', 'stop' ) );
+        }
+    }
+
+    /**
+     * Get the current user's IP
+     * @return null
+     */
+    private static function get_ip_address() {
+        if ( isset( $_SERVER['REMOTE_ADDR'] ) ) {
+            return $_SERVER['REMOTE_ADDR'];
+        }
+        return null;
+    }
+
+    /**
+     * Settings fields callback.
+     */
+    public function settings_fields() {
+        add_settings_section(
+            'atomic_stopwatch_settings',
+            'Atomic Stopwatch',
+            array( 'AtomicStopwatch', 'settings_callback' ),
+            'general'
+        );
+
+        add_settings_field(
+            'my_ip_address',
+            'My IP Address',
+            array( 'AtomicStopwatch', 'textbox_callback' ),
+            'general',
+            'atomic_stopwatch_settings',
+            array(
+                'my_ip_address'
+            )
+        );
+
+        register_setting( 'general', 'my_ip_address', 'esc_attr' );
+    }
+
+    /**
+     * Settings text callback.
+     */
+    function settings_callback() {
+        $ip_address = self::get_ip_address();
+        echo "<p>Enter the IP address on which to show the timer. Your current address is: {$ip_address}</p>";
+    }
+
+    /**
+     * Textbox callback.
+     * @param $args
+     */
+    function textbox_callback( $args ) {
+        $option = get_option( $args[0] );
+        if ( empty( $option ) ) {
+            $option = self::get_ip_address();
+        }
+        echo '<input type="text" id="'. $args[0] .'" name="'. $args[0] .'" value="' . $option . '" />';
     }
 
     /**
@@ -78,7 +141,7 @@ class AtomicStopwatch {
      */
     public static function ob_handler( $buffer ) {
 
-        self::$elapsed = round(
+        self::$elapsed_time = round(
             floatval(microtime(true)) - floatval(self::$start_time),
             2
         );
@@ -87,7 +150,7 @@ class AtomicStopwatch {
 
         return str_replace(
             '</body>',
-            "<div id=\"stopwatch\">{$label} : " . self::$elapsed . " seconds</div></body>",
+            "<div id=\"stopwatch\">{$label} : " . self::$elapsed_time . " seconds</div></body>",
             $buffer
         );
 
