@@ -1,6 +1,6 @@
 <?php
 /*
- * Plugin Name: Stopwatch
+ * Plugin Name: Atomic Stopwatch
  * Plugin URI:  https://github.com/iconifyit/wp-stopwatch
  * Description: A simple WordPress plugin to measure and display page render time.
  * Author:      Scott Lewis <scott@atomiclotus.net>
@@ -11,12 +11,12 @@
  */
 
 /**
- * WP Stopwatch measures page render speed and displays the result.
+ * WP Atomic Stopwatch measures page render speed and displays the result.
  *
  * LICENSE
- * This file is part of WP Stopwatch.
+ * This file is part of WP Atomic Stopwatch.
  *
- *  WP Stopwatch is free software; you can redistribute it and/or
+ * WP Atomic Stopwatch is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
  * of the License, or (at your option) any later version.
@@ -30,7 +30,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
- * @package    WP Stopwatch
+ * @package    Atomic Stopwatch
  * @author     Scott Lewis <scott@atomiclotus.net>
  * @copyright  Copyright 2018 Atomic Lotus, LLC
  * @license    http://www.gnu.org/licenses/gpl.txt GPL 2.0
