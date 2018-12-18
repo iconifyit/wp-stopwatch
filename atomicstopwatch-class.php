@@ -61,6 +61,11 @@ class AtomicStopwatch {
     public static $elapsed_time;
 
     /**
+     * @var (array)
+     */
+    private static $ip_addresses;
+
+    /**
      * AtomicStopwatch constructor. Register the actions.
      */
     function __construct() {
@@ -69,12 +74,25 @@ class AtomicStopwatch {
 
         add_action( 'admin_init', array( 'AtomicStopwatch', 'settings_fields' ) );
 
+        self::set_ip_addresses();
+
         // Only initialize the plugin if the user's IP address matches the saved one.
-        if ( get_option( 'my_ip_address' ) === self::get_ip_address() ) {
+
+        if ( in_array( self::get_ip_address(), self::$ip_addresses ) ) {
             add_action( 'admin_head', array( 'AtomicStopwatch', 'styles' ) );
             add_action( 'init',       array( 'AtomicStopwatch', 'start' ) );
             add_action( 'shutdown',   array( 'AtomicStopwatch', 'stop' ) );
         }
+    }
+
+    /**
+     * Set ip_addresses variables.
+     */
+    private static function set_ip_addresses() {
+        self::$ip_addresses = array_map(
+            'trim',
+            explode( ',', get_option( 'my_ip_address' ) )
+        );
     }
 
     /**
@@ -101,7 +119,7 @@ class AtomicStopwatch {
 
         add_settings_field(
             'my_ip_address',
-            'My IP Address',
+            "My IP Address <br><span style='font-weight: normal;'>(Show on these addresses)</spna>",
             array( 'AtomicStopwatch', 'textbox_callback' ),
             'general',
             'atomic_stopwatch_settings',
@@ -117,8 +135,9 @@ class AtomicStopwatch {
      * Settings text callback.
      */
     function settings_callback() {
-        $ip_address = self::get_ip_address();
-        echo "<p>Enter the IP address on which to show the timer. Your current address is: {$ip_address}</p>";
+        $my_address = self::get_ip_address();
+        echo "<p>To add your IP address to the current configuration, 
+                simply click this link <a href='javascript:void(0);' id='my-address'>{$my_address}</a> then click 'Save'.</p>";
     }
 
     /**
@@ -126,11 +145,30 @@ class AtomicStopwatch {
      * @param $args
      */
     function textbox_callback( $args ) {
+
+        $my_address = self::get_ip_address();
         $option = get_option( $args[0] );
         if ( empty( $option ) ) {
             $option = self::get_ip_address();
         }
-        echo '<input type="text" id="'. $args[0] .'" name="'. $args[0] .'" value="' . $option . '" />';
+        ?>
+        <script>
+            ;(function($) {
+                $(function() {
+                    $("#my-address").click(function(e) {
+                        var value = $("#<?php echo $args[0]; ?>").val();
+                        var my_address = '<?php echo $my_address; ?>';
+                        if (value.indexOf(my_address) == -1) {
+                            value += ( $.trim(value) != '' ? ', ' : ''  ) + my_address;
+                        }
+                        $("#<?php echo $args[0]; ?>").val(value);
+                    });
+                });
+            })(jQuery);
+        </script>
+        <?php
+        echo "<style>#{$args[0]} { min-height: 120px; max-height: 200px; } #my-address { font-weight: bold; };</style>";
+        echo "<textarea cols=\"50\" rows=\"10\" id=\"{$args[0]}\" name=\"{$args[0]}\" >{$option}</textarea>";
     }
 
     /**
