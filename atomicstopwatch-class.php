@@ -5,7 +5,7 @@
  * Description: A simple WordPress plugin to measure and display page render time.
  * Author:      Scott Lewis <scott@atomiclotus.net>
  * Author URI:  https://atomiclotus.net
- * Version:     0.1
+ * Version:     0.5
  * Text Domain: atomic-stopwatch
  * License:     GPL v2 or later
  */
@@ -66,9 +66,16 @@ class AtomicStopwatch {
     private static $ip_addresses;
 
     /**
+     * @var
+     */
+    static $markers;
+
+    /**
      * AtomicStopwatch constructor. Register the actions.
      */
     function __construct() {
+
+        self::marker( __LINE__, __METHOD__, __FILE__, 'Create AtomicStopwatch instance' );
 
         register_setting( 'general', 'my_ip_address', 'esc_attr' );
 
@@ -78,11 +85,21 @@ class AtomicStopwatch {
 
         // Only initialize the plugin if the user's IP address matches the saved one.
 
-        if ( in_array( self::get_ip_address(), self::$ip_addresses ) ) {
-            add_action( 'admin_head', array( 'AtomicStopwatch', 'styles' ) );
-            add_action( 'init',       array( 'AtomicStopwatch', 'start' ) );
-            add_action( 'shutdown',   array( 'AtomicStopwatch', 'stop' ) );
+        if ( self::can_run() ) {
+            add_action( 'admin_enqueue_scripts', array( 'AtomicStopwatch', 'styles' ) );
+            add_action( 'admin_bar_menu',        array( 'AtomicStopwatch', 'admin_bar'), 900 );
         }
+
+        add_action( 'init',     array( 'AtomicStopwatch', 'start' ) );
+        add_action( 'shutdown', array( 'AtomicStopwatch', 'stop' ) );
+
+    }
+
+    private static function can_run() {
+
+        self::set_ip_addresses();
+
+        return in_array( self::get_ip_address(), self::$ip_addresses );
     }
 
     /**
@@ -136,8 +153,9 @@ class AtomicStopwatch {
      */
     function settings_callback() {
         $my_address = self::get_ip_address();
-        echo "<p>To add your IP address to the current configuration, 
-                simply click this link <a href='javascript:void(0);' id='my-address'>{$my_address}</a> then click 'Save'.</p>";
+        echo "<p>To add your IP address to the current configuration, simply click" .
+             "this link <a href='javascript:void(0);' id='my-address'>{$my_address}</a>" .
+             "then click 'Save'.</p>";
     }
 
     /**
@@ -167,8 +185,8 @@ class AtomicStopwatch {
             })(jQuery);
         </script>
         <?php
-        echo "<style>#{$args[0]} { min-height: 120px; max-height: 200px; } #my-address { font-weight: bold; };</style>";
-        echo "<textarea cols=\"50\" rows=\"10\" id=\"{$args[0]}\" name=\"{$args[0]}\" >{$option}</textarea>";
+        echo "<textarea cols=\"50\" " . "rows=\"10\" class=\"atomic-stopwatch\" " . 
+             "id=\"{$args[0]}\" name=\"{$args[0]}\" >{$option}</textarea>";
     }
 
     /**
@@ -179,18 +197,60 @@ class AtomicStopwatch {
      */
     public static function ob_handler( $buffer ) {
 
+        $toolbar_tab = "<!-- AtomicStopwatch toolbar tab placeholder -->";
+        $the_report  = "<!-- AtomicStopwatch report placeholder -->";
+
         self::$elapsed_time = round(
             floatval(microtime(true)) - floatval(self::$start_time),
             2
         );
 
-        $label = __( 'Page Render Time', 'atomic-stopwatch' );
+        $label = __( 'Page Render', 'atomic-stopwatch' );
+
+        if ( self::can_run() ) {
+            $toolbar_tab = $label . ' : ' . self::$elapsed_time . 's';
+            self::marker( __LINE__, __METHOD__, __FILE__, 'Finish AtomicStopwatch' );
+            $the_report = "<h2>Atomic Stopwatch Report</h2>" . self::report();
+        }
 
         return str_replace(
-            '</body>',
-            "<div id=\"stopwatch\">{$label} : " . self::$elapsed_time . " seconds</div></body>",
+            ['{{atomic-stopwatch}}', '{{stopwatch-report}}'],
+            [$toolbar_tab, $the_report ],
             $buffer
         );
+    }
+
+    public function admin_bar( $wp_admin_bar ) {
+
+        $args = array(
+            'id'     => 'atomic_stopwatch',
+            'title'	 =>	'{{atomic-stopwatch}}',
+            'meta'   => array(
+                'class' => 'first-toolbar-group'
+            ),
+        );
+        $wp_admin_bar->add_node( $args );
+
+        // add child items
+        $args = array();
+        array_push($args,array(
+            'id'		=> 'atomic-settings',
+            'title'		=> 'Settings',
+            'href'		=> 'http://turnpike.vm/wp-admin/options-general.php',
+            'parent'	=> 'atomic_stopwatch',
+        ));
+
+        array_push($args,array(
+            'id'		=> 'atomic-lotus',
+            'title'		=> 'Atomic Lotus',
+            'href'		=> 'https://atomiclotus.net',
+            'meta'      => [ 'target' => '_blank' ],
+            'parent'	=> 'atomic_stopwatch',
+        ));
+
+        foreach( $args as $each_arg)	{
+            $wp_admin_bar->add_node($each_arg);
+        }
 
     }
 
@@ -214,14 +274,83 @@ class AtomicStopwatch {
      * Print the styles in the HTML header.
      */
     public function styles() {
-        echo "\n<style>"
-            . "#stopwatch { "
-            . "bottom: 0; width: 100%; "
-            . "height: 50px; line-height: 50px; "
-            . "background-color: black; color: #fff; "
-            . "font-weight: bold; text-align: center; "
-            . "position: fixed; z-index: 10000; "
-            . "}</style>\n";
+        wp_register_style( 'atomic_stopwatch', plugins_url('/assets/atomic-stopwatch.css', __FILE__), false, null );
+        wp_enqueue_style( 'atomic_stopwatch' );
+    }
+
+    public static function report() {
+        if ( is_null( self::$markers ) ) return null;
+
+        $table = "<table style='width: 100%;' class='atomic-stopwatch'> 
+                <tr>
+                    <th>#</th>
+                    <th>Time</th>
+                    <th>Duration this step</th>
+                    <th>Total Run time</th>
+                    <th>Line</th>
+                    <th>Function</th>
+                    <th>File</th>
+                    <th>Extra</th>
+                </tr>";
+        $rownum = 1;
+        foreach ( self::$markers as $marker ) {
+            $table .=
+                "<tr>
+                    <td>{$rownum}</td>
+                    <td>{$marker['time']}</td>
+                    <td>{$marker['elapsed']}</td>
+                    <td>{$marker['runtime']}</td>
+                    <td>{$marker['line']}</td>
+                    <td>{$marker['func']}</td>
+                    <td>{$marker['file']}</td>
+                    <td>{$marker['extra']}</td>
+                </tr>";
+            $rownum++;
+        }
+        $table .= "</table>";
+        return $table;
+    }
+
+    /**
+     * Prints a marker indicating current line, function,
+     * and file in code execution.
+     *
+     * Example:
+     *     AtomicStopwatch::marker( __LINE__, __FUNCTION__, __FILE__, "Cool" );
+     *
+     * Then, somewhere in your page add:
+     *    {{stopwatch-report}}
+     *
+     * @param $line
+     * @param $func
+     * @param $file
+     */
+    public static function marker( $line, $func, $file, $extra=null ) {
+
+        static $hold;
+
+        $last_time = $hold;
+        $hold = microtime(true);
+
+        $time    = round(microtime(true), 2);
+        $elapsed = ( is_null( $last_time ) ? '0.00' : round(microtime(true) - floatval($last_time), 2) );
+        $runtime = ( is_null( $last_time ) ? '0.00' : round(microtime(true) - floatval(self::$start_time), 2) );
+
+        $file = "/wp-content" . array_pop( explode( 'wp-content', $file ) );
+
+        if ( is_null( self::$markers ) ) {
+            self::$markers = [];
+        }
+
+        self::$markers[] = [
+            'time'    => $time,
+            'runtime' => $runtime,
+            'elapsed' => $elapsed,
+            'line'    => $line,
+            'func'    => $func,
+            'file'    => $file,
+            'extra'   => $extra
+        ];
     }
 
     /**
